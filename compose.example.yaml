@@ -51,6 +51,9 @@ services:
       # Broker-owned bridge, created on start. Never an application network.
       SANDBOX_BROKER_EGRESS_NETWORK: sandbox-broker-example-egress
       SANDBOX_BROKER_QUOTA_MODE: watchdog
+      # How many sandboxes may exist at once. A count cap, not a CPU/memory
+      # scheduler: size it as cap x the largest limits your callers request.
+      SANDBOX_BROKER_MAX_SANDBOXES: 8
     volumes:
       # The one and only place the Docker socket appears.
       - /var/run/docker.sock:/var/run/docker.sock

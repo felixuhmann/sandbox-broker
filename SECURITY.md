@@ -32,8 +32,11 @@ operator's private network, and the operator's other services.
 - Inbound access: sandboxes publish no ports.
 - Per-sandbox resource use: CPU, memory, and PID limits, bounded uploads and
   execution time, plus workspace monitoring. Portable `watchdog` workspace
-  mode is not a hard quota and aggregate host exhaustion is outside the v0.1
-  guarantee; see the workspace quota document.
+  mode is not a hard quota; see the workspace quota document.
+- Unbounded *numbers* of sandboxes: `SANDBOX_BROKER_MAX_SANDBOXES` (default 16)
+  caps how many non-deleted sandboxes one broker namespace may own, enforced
+  concurrency-safely at creation so racing requests cannot exceed it. This is a
+  **count cap, not aggregate CPU/memory scheduling** — see below.
 - Orphaned processes after timeout, cancellation, or broker crash: the affected
   sandbox is restarted and its network policy re-applied before further work.
 
@@ -52,8 +55,14 @@ operator's private network, and the operator's other services.
   authority. An RCE in the trusted broker or one of its dependencies can take
   over every workload on that Docker daemon. A dedicated worker daemon/VM is
   therefore the recommended production topology.
-- **Aggregate host resource exhaustion in v0.1.** Limits are enforced per
-  sandbox; there is no deployment-wide reservation scheduler yet.
+- **Aggregate CPU/memory/disk scheduling in v0.1.** The broker bounds the
+  *number* of sandboxes (`SANDBOX_BROKER_MAX_SANDBOXES`) and the resources of
+  each one, but it does not reserve, weigh, or admit against the host's actual
+  free CPU, memory, or disk. `cap × largest allowed limits` can still
+  oversubscribe a host, and the count cap does nothing about load generated
+  inside an already-admitted sandbox. Size the cap against the worst case your
+  callers can request, and keep the broker on a host whose other workloads can
+  tolerate it. A deployment-wide reservation scheduler is not in v0.1.
 - **Hard workspace byte quotas on every storage driver.** See
   [`docs/workspace-quota.md`](docs/workspace-quota.md) for the exact enforcement
   contract; the broker refuses to start in `hard` quota mode when the host

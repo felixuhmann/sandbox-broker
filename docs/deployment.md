@@ -71,6 +71,7 @@ release publishes the three digests in its release notes; see
 | `SANDBOX_BROKER_FIREWALL_IMAGE` | `sandbox-broker/firewall:dev` | Pin to a digest in production. |
 | `SANDBOX_BROKER_EGRESS_NETWORK` | `sandbox-broker-egress` | Broker-owned bridge for `unrestricted` sandboxes. Must not be your app/database network. |
 | `SANDBOX_BROKER_BLOCKED_CIDRS` | — | Extra destinations sandboxes must not reach. |
+| `SANDBOX_BROKER_MAX_SANDBOXES` | `16` | Hard cap on non-deleted sandboxes in this namespace. Integer 1–1024; there is no unlimited value. See [Sandbox capacity](#sandbox-capacity). |
 | `SANDBOX_BROKER_QUOTA_MODE` | `watchdog` | `watchdog` or `hard`. See [workspace-quota.md](workspace-quota.md). |
 | `SANDBOX_BROKER_HOST_RESERVE_MIB` | `2048` | Host headroom to keep free. |
 | `SANDBOX_BROKER_MAX_EXEC_TIMEOUT_MS` | `1800000` | Server-side ceiling on any command. |
@@ -81,6 +82,38 @@ release publishes the three digests in its release notes; see
 
 The token is never logged, never returned by any endpoint, and is excluded from
 the config object's own serialization.
+
+## Sandbox capacity
+
+`SANDBOX_BROKER_MAX_SANDBOXES` bounds **how many sandboxes exist**, not how much
+they may consume. Per-sandbox limits (`cpuCores`, `memoryMiB`, `pids`,
+`workspaceMiB`) bound one workload; without a count cap a caller could still
+exhaust the host simply by asking for enough of them.
+
+Operational semantics:
+
+- Creation is admitted only while the number of non-deleted sandboxes carrying
+  this broker's `sandbox-broker.namespace` label is below the cap. Foreign
+  containers, another broker's namespace, and firewall helpers never count.
+- The check is concurrency-safe: racing creates cannot collectively exceed the
+  cap, because each admitted request holds a reservation until its container
+  exists.
+- At capacity, `POST /v1/sandboxes` returns `429` with code `rate_limited` and
+  `details: { maxSandboxes, inUse }`, and **no container or volume is created**.
+  Replaying the idempotency key of an existing sandbox still succeeds; it
+  consumes no additional slot.
+- A **stopped** sandbox still occupies a slot — it keeps its container and its
+  workspace volume. Only `DELETE /v1/sandboxes/{id}` frees one.
+- Utilisation is reported by `GET /v1/ready` as the `sandbox-capacity` check
+  (`detail: "3/16 sandboxes in use"`). Being at capacity is *not* an unready
+  broker: the check only fails when the count itself cannot be established. It
+  is deliberately not surfaced in `GET /v1/capabilities`, because that response
+  is validated strictly by pinned v1 clients and a new field would break them.
+
+Choosing a value: this is a count, so size it against the *worst case* a caller
+can request — the largest `limits` your callers use, times the cap, against the
+host's CPU, memory, and disk minus `SANDBOX_BROKER_HOST_RESERVE_MIB`. The broker
+does not schedule aggregate CPU or memory; see [SECURITY.md](../SECURITY.md).
 
 ## The token
 

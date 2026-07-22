@@ -36,7 +36,7 @@ host paths, or Docker container ids.
 | `conflict` | 409 | Idempotency key reused with a different configuration; or an execution is already running; or the workspace quota is exceeded. |
 | `sandbox_error` | 409 | The sandbox is in a state that cannot serve the request. |
 | `unsupported_policy` | 422 | A policy this broker version cannot honour (for example a CIDR allowlist). Fails closed; never widened. |
-| `rate_limited` | 429 | Too many in-flight operations. |
+| `rate_limited` | 429 | Too many in-flight operations, or the broker is at `SANDBOX_BROKER_MAX_SANDBOXES`. On create, `details` carries `{ maxSandboxes, inUse }` and nothing was created. |
 | `not_ready` | 503 | Docker unreachable, required images missing, or the configured quota mode is unenforceable. |
 | `internal` | 500 | Unexpected failure. Details are logged, not returned. |
 
