@@ -1,0 +1,84 @@
+# Example topology for running sandbox-broker alongside an application.
+#
+# Copy and adapt. The comments mark the parts that are security-relevant rather
+# than cosmetic.
+#
+#   DOCKER_GID=$(getent group docker | cut -d: -f3) \
+#   SANDBOX_BROKER_TOKEN=$(openssl rand -base64 32) \
+#   docker compose -f compose.example.yaml up -d
+
+name: sandbox-broker-example
+
+services:
+  app:
+    image: your-app:latest
+    environment:
+      # Reached by service name on the private control network only.
+      SANDBOX_BROKER_URL: http://sandbox-broker:8080
+      SANDBOX_BROKER_TOKEN: ${SANDBOX_BROKER_TOKEN:?set SANDBOX_BROKER_TOKEN}
+    networks:
+      - app
+      - sandbox_control
+    depends_on:
+      sandbox-broker:
+        condition: service_healthy
+    # The application never needs the Docker socket or the Docker CLI.
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    # Deliberately NOT on sandbox_control: sandboxes must never share a segment
+    # with the database.
+    networks:
+      - app
+
+  sandbox-broker:
+    # Pin by digest in production:
+    #   image: ghcr.io/felixuhmann/sandbox-broker-server@sha256:...
+    image: sandbox-broker/server:dev
+    environment:
+      SANDBOX_BROKER_TOKEN: ${SANDBOX_BROKER_TOKEN:?set SANDBOX_BROKER_TOKEN}
+      SANDBOX_BROKER_NAMESPACE: example
+      # Pin these by digest too, so a moved tag cannot change what runs. The
+      # digests of a release are listed in its GitHub Release notes:
+      #   SANDBOX_BROKER_SANDBOX_IMAGE: ghcr.io/felixuhmann/sandbox-broker-sandbox@sha256:...
+      #   SANDBOX_BROKER_FIREWALL_IMAGE: ghcr.io/felixuhmann/sandbox-broker-firewall@sha256:...
+      SANDBOX_BROKER_SANDBOX_IMAGE: sandbox-broker/sandbox:dev
+      SANDBOX_BROKER_FIREWALL_IMAGE: sandbox-broker/firewall:dev
+      # Broker-owned bridge, created on start. Never an application network.
+      SANDBOX_BROKER_EGRESS_NETWORK: sandbox-broker-example-egress
+      SANDBOX_BROKER_QUOTA_MODE: watchdog
+      # How many sandboxes may exist at once. A count cap, not a CPU/memory
+      # scheduler: size it as cap x the largest limits your callers request.
+      SANDBOX_BROKER_MAX_SANDBOXES: 8
+    volumes:
+      # The one and only place the Docker socket appears.
+      - /var/run/docker.sock:/var/run/docker.sock
+    group_add:
+      # The broker runs as UID 10101; this grants socket access without root.
+      - "${DOCKER_GID:?set DOCKER_GID}"
+    networks:
+      - sandbox_control
+    # No `ports:` — the broker is never reachable from the host or the internet.
+    # No Traefik/Dokploy labels — it gets no public route.
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+
+networks:
+  app:
+    driver: bridge
+  sandbox_control:
+    driver: bridge
+    # Shared only by the application and the broker.
+    internal: true
+
+volumes:
+  db-data:
