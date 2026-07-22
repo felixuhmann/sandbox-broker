@@ -173,7 +173,17 @@ describe("FilePathQuery", () => {
   });
 
   it("rejects traversal and out-of-workspace paths", () => {
-    for (const path of ["/etc/passwd", "/workspace/../etc/passwd", "../x", "", "/workspace/a\0b"]) {
+    for (const path of [
+      "/etc/passwd",
+      "/workspace/../etc/passwd",
+      "../x",
+      "",
+      "/workspace/a\0b",
+      // Trailing slash would leave an empty basename.
+      "/workspace/",
+      "/workspace",
+      "/workspace-evil/x",
+    ]) {
       expect(FilePathQuery.safeParse({ path }).success).toBe(false);
     }
   });

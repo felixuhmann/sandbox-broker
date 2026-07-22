@@ -68,7 +68,8 @@ export type SandboxList = z.infer<typeof SandboxList>;
 export function normalizeWorkspacePath(input: string): string | null {
   if (input.length === 0 || input.includes("\0")) return null;
   if (!input.startsWith("/")) return null;
-  const normalized = posixPath.normalize(input);
+  // `normalize` keeps a trailing slash, which would leave an empty basename.
+  const normalized = posixPath.normalize(input).replace(/\/+$/, "");
   if (normalized === WORKSPACE_ROOT) return null;
   if (!normalized.startsWith(`${WORKSPACE_ROOT}/`)) return null;
   // `normalize` collapses `..`; a surviving segment means the input escaped.

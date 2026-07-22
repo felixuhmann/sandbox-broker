@@ -111,6 +111,11 @@ export type BrokerConfig = {
   readonly maxExecTimeoutMs: number;
   /** Additional destinations sandboxes must not reach (broker, app, database). */
   readonly extraBlockedCidrs: readonly string[];
+  /** Volume driver for workspaces. Only `local` is exercised by the test suite. */
+  readonly volumeDriver: string;
+  readonly volumeOpts: Readonly<Record<string, string>>;
+  /** Hard ceiling on a single file upload. */
+  readonly maxUploadBytes: number;
   readonly corsEnabled: false;
 };
 
@@ -155,6 +160,15 @@ export function loadConfig(env: Env = process.env): BrokerConfig {
       MAX_EXEC_TIMEOUT_MS,
     ),
     extraBlockedCidrs: splitList(env["SANDBOX_BROKER_BLOCKED_CIDRS"]),
+    volumeDriver: env["SANDBOX_BROKER_VOLUME_DRIVER"]?.trim() || "local",
+    volumeOpts: parseKeyValues(env["SANDBOX_BROKER_VOLUME_OPTS"]),
+    maxUploadBytes: readInt(
+      env,
+      "SANDBOX_BROKER_MAX_UPLOAD_BYTES",
+      256 * 1024 * 1024,
+      1024,
+      4 * 1024 * 1024 * 1024,
+    ),
     corsEnabled: false,
   };
 
@@ -186,4 +200,15 @@ function splitList(raw: string | undefined): readonly string[] {
     .split(",")
     .map((entry) => entry.trim())
     .filter((entry) => entry.length > 0);
+}
+
+/** Parses `key=value,key=value` into a record, ignoring malformed entries. */
+function parseKeyValues(raw: string | undefined): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const entry of splitList(raw)) {
+    const index = entry.indexOf("=");
+    if (index <= 0) continue;
+    out[entry.slice(0, index).trim()] = entry.slice(index + 1).trim();
+  }
+  return out;
 }
