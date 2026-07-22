@@ -11,9 +11,9 @@ published host port.
 
 Inspired by the `docker exec` command channel used by Eve and Mastra.
 
-> **Status:** pre-release. The service, images, contract and security tests are
-> implemented; the generated TypeScript client and the GHCR release pipeline are
-> not yet. Single-tenant only: sandboxes share the host kernel via `runc`. Read
+> **Status:** pre-release. The service, images, contract, TypeScript client and
+> security tests are implemented; no version has been tagged or published yet.
+> Single-tenant only: sandboxes share the host kernel via `runc`. Read
 > [SECURITY.md](SECURITY.md) before deploying.
 
 ## What it does
@@ -42,11 +42,52 @@ Inspired by the `docker exec` command channel used by Eve and Mastra.
 |---|---|
 | `apps/server` | The Hono service (`@sandbox-broker/server`) |
 | `packages/contracts` | Zod schemas + OpenAPI route metadata (`@sandbox-broker/contracts`) |
-| `packages/client` | Placeholder; the generated client is not implemented yet |
+| `packages/client` | Typed fetch client (`@sandbox-broker/client`) |
 | `images/sandbox` | Hardened sandbox image |
 | `images/firewall` | Short-lived nftables policy helper |
 | `images/server` | Broker service image |
 | `openapi/openapi.json` | Generated, committed API contract |
+
+## Client
+
+`@sandbox-broker/client` is a dependency-light fetch client whose request and
+response types come from the same Zod contract that generates
+`openapi/openapi.json` — there is no second copy of the wire types to drift.
+Every response is validated before it is returned, so a version-skewed broker
+fails loudly instead of typing as valid.
+
+```ts
+import { createSandboxBrokerClient } from "@sandbox-broker/client";
+
+const broker = createSandboxBrokerClient({
+  baseUrl: process.env.SANDBOX_BROKER_URL!,
+  token: process.env.SANDBOX_BROKER_TOKEN!,
+});
+
+const { sandbox } = await broker.createSandbox({
+  idempotencyKey: "conversation-42",
+  ownerRef: "open-agents:conversation:42",
+  networkMode: "unrestricted",
+  limits: { cpuCores: 2, memoryMiB: 2048, pids: 512, workspaceMiB: 2048 },
+});
+
+await broker.writeFile(sandbox.id, "/workspace/input.bin", bytes);
+
+for await (const event of await broker.exec(sandbox.id, { command: "ls -la" })) {
+  if (event.type === "stdout") process.stdout.write(Buffer.from(event.dataBase64, "base64"));
+  if (event.type === "result") console.error(`exit ${event.exitCode}`);
+}
+```
+
+The NDJSON parser is strict on purpose: sequence numbers must start at 1 and
+increase by exactly one, all frames must belong to one execution, and the stream
+must end with exactly one terminal frame. Dropped, reordered, duplicated or
+truncated output raises `BrokerStreamError` rather than silently returning a
+partial transcript. Pass an `AbortSignal` to cancel; the broker treats the
+disconnect as cancellation and recovers the sandbox.
+
+Installation without a private registry is covered in
+[`docs/deployment.md`](docs/deployment.md#consuming-the-client).
 
 ## Requirements
 

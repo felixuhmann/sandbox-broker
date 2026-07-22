@@ -66,6 +66,10 @@ importers:
       zod:
         specifier: ^3.25.76
         version: 3.25.76
+    devDependencies:
+      '@sandbox-broker/server':
+        specifier: workspace:*
+        version: link:../../apps/server
 
   packages/contracts:
     dependencies:
