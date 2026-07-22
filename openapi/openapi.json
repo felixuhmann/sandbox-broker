@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "sandbox-broker",
-    "version": "0.1.0",
+    "version": "0.1.0-rc.1",
     "description": "Authenticated control API for hardened, single-tenant Docker sandboxes. Requests carry a fixed option set: the API never accepts an image, bind mount, capability, device, user or privileged flag.",
     "license": {
       "name": "Apache-2.0",
