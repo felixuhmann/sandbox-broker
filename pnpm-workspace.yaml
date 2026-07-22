@@ -1,0 +1,11 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+# Only esbuild (vitest/tsx toolchain) may run install scripts. Optional native
+# addons pulled in transitively by dockerode stay unbuilt on purpose.
+allowBuilds:
+  cpu-features: false
+  esbuild: true
+  protobufjs: false
+  ssh2: false
