@@ -11,8 +11,10 @@ published host port.
 
 Inspired by the `docker exec` command channel used by Eve and Mastra.
 
-> **Status:** v0.1.0 — single-tenant only. Sandboxes share the host kernel via
-> `runc`. Read [SECURITY.md](SECURITY.md) before deploying.
+> **Status:** pre-release. The service, images, contract and security tests are
+> implemented; the generated TypeScript client and the GHCR release pipeline are
+> not yet. Single-tenant only: sandboxes share the host kernel via `runc`. Read
+> [SECURITY.md](SECURITY.md) before deploying.
 
 ## What it does
 
@@ -40,7 +42,7 @@ Inspired by the `docker exec` command channel used by Eve and Mastra.
 |---|---|
 | `apps/server` | The Hono service (`@sandbox-broker/server`) |
 | `packages/contracts` | Zod schemas + OpenAPI route metadata (`@sandbox-broker/contracts`) |
-| `packages/client` | Typed HTTP/NDJSON client (`@sandbox-broker/client`) |
+| `packages/client` | Placeholder; the generated client is not implemented yet |
 | `images/sandbox` | Hardened sandbox image |
 | `images/firewall` | Short-lived nftables policy helper |
 | `images/server` | Broker service image |

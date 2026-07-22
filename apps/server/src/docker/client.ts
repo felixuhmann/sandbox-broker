@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import Docker from "dockerode";
 
 import type { BrokerConfig } from "../config.js";
@@ -73,14 +75,21 @@ export async function ensureEgressNetwork(
       // Inter-container communication off: sandboxes on this bridge cannot
       // talk to each other, only outward through the gateway.
       "com.docker.network.bridge.enable_icc": "false",
-      "com.docker.network.bridge.name": truncateBridgeName(name),
+      "com.docker.network.bridge.name": bridgeInterfaceName(name),
     },
   });
   return { name, id: network.id, created: true };
 }
 
-/** Linux interface names are capped at 15 characters. */
-function truncateBridgeName(name: string): string {
-  const sanitized = `br-${name.replace(/[^a-zA-Z0-9]/g, "").slice(0, 12)}`;
-  return sanitized.slice(0, 15);
+/**
+ * Derives the host bridge interface name for a Docker network.
+ *
+ * Linux caps interface names at 15 characters, and Docker refuses to create a
+ * network whose bridge name is already taken. Truncating the network name
+ * collides for anything sharing a long prefix ("sandbox-broker-itest-egress"
+ * and "sandbox-broker-smoke-egress"), so the suffix is a hash instead.
+ */
+export function bridgeInterfaceName(networkName: string): string {
+  const digest = createHash("sha256").update(networkName).digest("hex").slice(0, 9);
+  return `br-sb-${digest}`;
 }

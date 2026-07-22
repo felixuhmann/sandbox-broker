@@ -19,9 +19,11 @@ RUN pnpm install --frozen-lockfile
 
 COPY packages/ packages/
 COPY apps/ apps/
+# `--legacy` keeps the workspace dependency as a plain copy rather than an
+# injected one, which is what a self-contained runtime image needs.
 RUN pnpm --filter @sandbox-broker/contracts build \
     && pnpm --filter @sandbox-broker/server build \
-    && pnpm --filter @sandbox-broker/server --prod deploy /out
+    && pnpm --filter @sandbox-broker/server --prod --legacy deploy /out
 
 FROM node:24-bookworm-slim AS runtime
 
