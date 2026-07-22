@@ -1,0 +1,4106 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "sandbox-broker",
+    "version": "0.1.0",
+    "description": "Authenticated control API for hardened, single-tenant Docker sandboxes. Requests carry a fixed option set: the API never accepts an image, bind mount, capability, device, user or privileged flag.",
+    "license": {
+      "name": "Apache-2.0",
+      "url": "https://www.apache.org/licenses/LICENSE-2.0"
+    }
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "Private broker endpoint"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "opaque"
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "service",
+      "description": "Health, readiness and capabilities"
+    },
+    {
+      "name": "sandboxes",
+      "description": "Sandbox lifecycle, exec and files (v1)"
+    }
+  ],
+  "paths": {
+    "/healthz": {
+      "get": {
+        "operationId": "getHealth",
+        "summary": "Liveness probe",
+        "tags": [
+          "service"
+        ],
+        "description": "Unauthenticated. Reports process liveness only, never Docker internals.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Process is alive.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "ok"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "status"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/ready": {
+      "get": {
+        "operationId": "getReady",
+        "summary": "Readiness probe",
+        "tags": [
+          "service"
+        ],
+        "description": "Authenticated. Verifies Docker connectivity, required images, and the configured workspace quota mode.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Broker is ready.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ready": {
+                      "type": "boolean"
+                    },
+                    "apiVersion": {
+                      "type": "string",
+                      "enum": [
+                        "v1"
+                      ]
+                    },
+                    "brokerVersion": {
+                      "type": "string"
+                    },
+                    "checks": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "ok": {
+                            "type": "boolean"
+                          },
+                          "detail": {
+                            "type": "string",
+                            "maxLength": 500
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "ok"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "ready",
+                    "apiVersion",
+                    "brokerVersion",
+                    "checks"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "invalid_request",
+                            "unauthorized",
+                            "not_found",
+                            "conflict",
+                            "unsupported_policy",
+                            "rate_limited",
+                            "not_ready",
+                            "sandbox_error",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Broker is not ready.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ready": {
+                      "type": "boolean"
+                    },
+                    "apiVersion": {
+                      "type": "string",
+                      "enum": [
+                        "v1"
+                      ]
+                    },
+                    "brokerVersion": {
+                      "type": "string"
+                    },
+                    "checks": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "ok": {
+                            "type": "boolean"
+                          },
+                          "detail": {
+                            "type": "string",
+                            "maxLength": 500
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "ok"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "ready",
+                    "apiVersion",
+                    "brokerVersion",
+                    "checks"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/capabilities": {
+      "get": {
+        "operationId": "getCapabilities",
+        "summary": "Capability and version report",
+        "tags": [
+          "service"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Capabilities.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "apiVersion": {
+                      "type": "string",
+                      "enum": [
+                        "v1"
+                      ]
+                    },
+                    "brokerVersion": {
+                      "type": "string"
+                    },
+                    "networkModes": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "deny-all",
+                          "unrestricted"
+                        ]
+                      }
+                    },
+                    "archive": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ]
+                    },
+                    "recover": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ]
+                    },
+                    "limits": {
+                      "type": "object",
+                      "properties": {
+                        "cpuCores": {
+                          "type": "number",
+                          "exclusiveMinimum": true,
+                          "minimum": 0,
+                          "maximum": 8
+                        },
+                        "memoryMiB": {
+                          "type": "integer",
+                          "minimum": 128,
+                          "maximum": 32768
+                        },
+                        "pids": {
+                          "type": "integer",
+                          "minimum": 16,
+                          "maximum": 4096
+                        },
+                        "workspaceMiB": {
+                          "type": "integer",
+                          "minimum": 64,
+                          "maximum": 32768
+                        }
+                      },
+                      "required": [
+                        "cpuCores",
+                        "memoryMiB",
+                        "pids",
+                        "workspaceMiB"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "workspaceQuota": {
+                      "type": "object",
+                      "properties": {
+                        "mode": {
+                          "type": "string",
+                          "enum": [
+                            "hard",
+                            "watchdog"
+                          ]
+                        },
+                        "enforced": {
+                          "type": "boolean"
+                        },
+                        "detail": {
+                          "type": "string",
+                          "maxLength": 500
+                        }
+                      },
+                      "required": [
+                        "mode",
+                        "enforced",
+                        "detail"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "maxExecTimeoutMs": {
+                      "type": "integer",
+                      "exclusiveMinimum": true,
+                      "minimum": 0
+                    }
+                  },
+                  "required": [
+                    "apiVersion",
+                    "brokerVersion",
+                    "networkModes",
+                    "archive",
+                    "recover",
+                    "limits",
+                    "workspaceQuota",
+                    "maxExecTimeoutMs"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "invalid_request",
+                            "unauthorized",
+                            "not_found",
+                            "conflict",
+                            "unsupported_policy",
+                            "rate_limited",
+                            "not_ready",
+                            "sandbox_error",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Broker or Docker not ready.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "invalid_request",
+                            "unauthorized",
+                            "not_found",
+                            "conflict",
+                            "unsupported_policy",
+                            "rate_limited",
+                            "not_ready",
+                            "sandbox_error",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sandboxes": {
+      "post": {
+        "operationId": "createSandbox",
+        "summary": "Create a sandbox idempotently",
+        "tags": [
+          "sandboxes"
+        ],
+        "description": "Repeating a request with the same idempotencyKey and identical configuration returns the existing sandbox. A conflicting configuration returns 409.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "idempotencyKey": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "ownerRef": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "networkMode": {
+                    "type": "string",
+                    "enum": [
+                      "deny-all",
+                      "unrestricted"
+                    ]
+                  },
+                  "limits": {
+                    "type": "object",
+                    "properties": {
+                      "cpuCores": {
+                        "type": "number",
+                        "exclusiveMinimum": true,
+                        "minimum": 0,
+                        "maximum": 8
+                      },
+                      "memoryMiB": {
+                        "type": "integer",
+                        "minimum": 128,
+                        "maximum": 32768
+                      },
+                      "pids": {
+                        "type": "integer",
+                        "minimum": 16,
+                        "maximum": 4096
+                      },
+                      "workspaceMiB": {
+                        "type": "integer",
+                        "minimum": 64,
+                        "maximum": 32768
+                      }
+                    },
+                    "required": [
+                      "cpuCores",
+                      "memoryMiB",
+                      "pids",
+                      "workspaceMiB"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "idempotencyKey",
+                  "ownerRef",
+                  "networkMode",
+                  "limits"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Existing sandbox for this idempotency key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "ownerRef": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200
+                    },
+                    "networkMode": {
+                      "type": "string",
+                      "enum": [
+                        "deny-all",
+                        "unrestricted"
+                      ]
+                    },
+                    "limits": {
+                      "type": "object",
+                      "properties": {
+                        "cpuCores": {
+                          "type": "number",
+                          "exclusiveMinimum": true,
+                          "minimum": 0,
+                          "maximum": 8
+                        },
+                        "memoryMiB": {
+                          "type": "integer",
+                          "minimum": 128,
+                          "maximum": 32768
+                        },
+                        "pids": {
+                          "type": "integer",
+                          "minimum": 16,
+                          "maximum": 4096
+                        },
+                        "workspaceMiB": {
+                          "type": "integer",
+                          "minimum": 64,
+                          "maximum": 32768
+                        }
+                      },
+                      "required": [
+                        "cpuCores",
+                        "memoryMiB",
+                        "pids",
+                        "workspaceMiB"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "starting",
+                        "started",
+                        "stopped",
+                        "error",
+                        "deleted"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "updatedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "workspacePath": {
+                      "type": "string",
+                      "enum": [
+                        "/workspace"
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "maxLength": 2000
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "ownerRef",
+                    "networkMode",
+                    "limits",
+                    "state",
+                    "createdAt",
+                    "updatedAt",
+                    "workspacePath"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Sandbox created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "ownerRef": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200
+                    },
+                    "networkMode": {
+                      "type": "string",
+                      "enum": [
+                        "deny-all",
+                        "unrestricted"
+                      ]
+                    },
+                    "limits": {
+                      "type": "object",
+                      "properties": {
+                        "cpuCores": {
+                          "type": "number",
+                          "exclusiveMinimum": true,
+                          "minimum": 0,
+                          "maximum": 8
+                        },
+                        "memoryMiB": {
+                          "type": "integer",
+                          "minimum": 128,
+                          "maximum": 32768
+                        },
+                        "pids": {
+                          "type": "integer",
+                          "minimum": 16,
+                          "maximum": 4096
+                        },
+                        "workspaceMiB": {
+                          "type": "integer",
+                          "minimum": 64,
+                          "maximum": 32768
+                        }
+                      },
+                      "required": [
+                        "cpuCores",
+                        "memoryMiB",
+                        "pids",
+                        "workspaceMiB"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "starting",
+                        "started",
+                        "stopped",
+                        "error",
+                        "deleted"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "updatedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "workspacePath": {
+                      "type": "string",
+                      "enum": [
+                        "/workspace"
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "maxLength": 2000
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "ownerRef",
+                    "networkMode",
+                    "limits",
+                    "state",
+                    "createdAt",
+                    "updatedAt",
+                    "workspacePath"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or unknown field.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "invalid_request",
+                            "unauthorized",
+                            "not_found",
+                            "conflict",
+                            "unsupported_policy",
+                            "rate_limited",
+                            "not_ready",
+                            "sandbox_error",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "invalid_request",
+                            "unauthorized",
+                            "not_found",
+                            "conflict",
+                            "unsupported_policy",
+                            "rate_limited",
+                            "not_ready",
+                            "sandbox_error",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Idempotency key reused with a different configuration.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "invalid_request",
+                            "unauthorized",
+                            "not_found",
+                            "conflict",
+                            "unsupported_policy",
+                            "rate_limited",
+                            "not_ready",
+                            "sandbox_error",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Requested policy is not supported by this broker version.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "invalid_request",
+                            "unauthorized",
+                            "not_found",
+                            "conflict",
+                            "unsupported_policy",
+                            "rate_limited",
+                            "not_ready",
+                            "sandbox_error",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many in-flight operations.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "invalid_request",
+                            "unauthorized",
+                            "not_found",
+                            "conflict",
+                            "unsupported_policy",
+                            "rate_limited",
+                            "not_ready",
+                            "sandbox_error",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Broker or Docker not ready.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "invalid_request",
+                            "unauthorized",
+                            "not_found",
+                            "conflict",
+                            "unsupported_policy",
+                            "rate_limited",
+                            "not_ready",
+                            "sandbox_error",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "listSandboxes",
+        "summary": "List broker-owned sandboxes",
+        "tags": [
+          "sandboxes"
+        ],
+        "description": "Only containers carrying this broker's ownership labels are returned.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sandboxes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "sandboxes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "ownerRef": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "networkMode": {
+                            "type": "string",
+                            "enum": [
+                              "deny-all",
+                              "unrestricted"
+                            ]
+                          },
+                          "limits": {
+                            "type": "object",
+                            "properties": {
+                              "cpuCores": {
+                                "type": "number",
+                                "exclusiveMinimum": true,
+                                "minimum": 0,
+                                "maximum": 8
+                              },
+                              "memoryMiB": {
+                                "type": "integer",
+                                "minimum": 128,
+                                "maximum": 32768
+                              },
+                              "pids": {
+                                "type": "integer",
+                                "minimum": 16,
+                                "maximum": 4096
+                              },
+                              "workspaceMiB": {
+                                "type": "integer",
+                                "minimum": 64,
+                                "maximum": 32768
+                              }
+                            },
+                            "required": [
+                              "cpuCores",
+                              "memoryMiB",
+                              "pids",
+                              "workspaceMiB"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "state": {
+                            "type": "string",
+                            "enum": [
+                              "starting",
+                              "started",
+                              "stopped",
+                              "error",
+                              "deleted"
+                            ]
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "updatedAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "workspacePath": {
+                            "type": "string",
+                            "enum": [
+                              "/workspace"
+                            ]
+                          },
+                          "message": {
+                            "type": "string",
+                            "maxLength": 2000
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "ownerRef",
+                          "networkMode",
+                          "limits",
+                          "state",
+                          "createdAt",
+                          "updatedAt",
+                          "workspacePath"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "sandboxes"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or unknown field.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "invalid_request",
+                            "unauthorized",
+                            "not_found",
+                            "conflict",
+                            "unsupported_policy",
+                            "rate_limited",
+                            "not_ready",
+                            "sandbox_error",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "invalid_request",
+                            "unauthorized",
+                            "not_found",
+                            "conflict",
+                            "unsupported_policy",
+                            "rate_limited",
+                            "not_ready",
+                            "sandbox_error",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many in-flight operations.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "invalid_request",
+                            "unauthorized",
+                            "not_found",
+                            "conflict",
+                            "unsupported_policy",
+                            "rate_limited",
+                            "not_ready",
+                            "sandbox_error",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Broker or Docker not ready.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "invalid_request",
+                            "unauthorized",
+                            "not_found",
+                            "conflict",
+                            "unsupported_policy",
+                            "rate_limited",
+                            "not_ready",
+                            "sandbox_error",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sandboxes/{id}": {
+      "get": {
+        "operationId": "getSandbox",
+        "summary": "Get normalized sandbox state",
+        "tags": [
+          "sandboxes"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sandbox.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "ownerRef": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200
+                    },
+                    "networkMode": {
+                      "type": "string",
+                      "enum": [
+                        "deny-all",
+                        "unrestricted"
+                      ]
+                    },
+                    "limits": {
+                      "type": "object",
+                      "properties": {
+                        "cpuCores": {
+                          "type": "number",
+                          "exclusiveMinimum": true,
+                          "minimum": 0,
+                          "maximum": 8
+                        },
+                        "memoryMiB": {
+                          "type": "integer",
+                          "minimum": 128,
+                          "maximum": 32768
+                        },
+                        "pids": {
+                          "type": "integer",
+                          "minimum": 16,
+                          "maximum": 4096
+                        },
+                        "workspaceMiB": {
+                          "type": "integer",
+                          "minimum": 64,
+                          "maximum": 32768
+                        }
+                      },
+                      "required": [
+                        "cpuCores",
+                        "memoryMiB",
+                        "pids",
+                        "workspaceMiB"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "starting",
+                        "started",
+                        "stopped",
+                        "error",
+                        "deleted"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "updatedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "workspacePath": {
+                      "type": "string",
+                      "enum": [
+                        "/workspace"
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "maxLength": 2000
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "ownerRef",
+                    "networkMode",
+                    "limits",
+                    "state",
+                    "createdAt",
+                    "updatedAt",
+                    "workspacePath"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or unknown field.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "invalid_request",
+                            "unauthorized",
+                            "not_found",
+                            "conflict",
+                            "unsupported_policy",
+                            "rate_limited",
+                            "not_ready",
+                            "sandbox_error",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "invalid_request",
+                            "unauthorized",
+                            "not_found",
+                            "conflict",
+                            "unsupported_policy",
+                            "rate_limited",
+                            "not_ready",
+                            "sandbox_error",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No broker-owned sandbox with this id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "invalid_request",
+                            "unauthorized",
+                            "not_found",
+                            "conflict",
+                            "unsupported_policy",
+                            "rate_limited",
+                            "not_ready",
+                            "sandbox_error",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many in-flight operations.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "invalid_request",
+                            "unauthorized",
+                            "not_found",
+                            "conflict",
+                            "unsupported_policy",
+                            "rate_limited",
+                            "not_ready",
+                            "sandbox_error",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Broker or Docker not ready.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "invalid_request",
+                            "unauthorized",
+                            "not_found",
+                            "conflict",
+                            "unsupported_policy",
+                            "rate_limited",
+                            "not_ready",
+                            "sandbox_error",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteSandbox",
+        "summary": "Delete a sandbox and its workspace",
+        "tags": [
+          "sandboxes"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sandbox deleted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "ownerRef": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200
+                    },
+                    "networkMode": {
+                      "type": "string",
+                      "enum": [
+                        "deny-all",
+                        "unrestricted"
+                      ]
+                    },
+                    "limits": {
+                      "type": "object",
+                      "properties": {
+                        "cpuCores": {
+                          "type": "number",
+                          "exclusiveMinimum": true,
+                          "minimum": 0,
+                          "maximum": 8
+                        },
+                        "memoryMiB": {
+                          "type": "integer",
+                          "minimum": 128,
+                          "maximum": 32768
+                        },
+                        "pids": {
+                          "type": "integer",
+                          "minimum": 16,
+                          "maximum": 4096
+                        },
+                        "workspaceMiB": {
+                          "type": "integer",
+                          "minimum": 64,
+                          "maximum": 32768
+                        }
+                      },
+                      "required": [
+                        "cpuCores",
+                        "memoryMiB",
+                        "pids",
+                        "workspaceMiB"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "starting",
+                        "started",
+                        "stopped",
+                        "error",
+                        "deleted"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "updatedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "workspacePath": {
+                      "type": "string",
+                      "enum": [
+                        "/workspace"
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "maxLength": 2000
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "ownerRef",
+                    "networkMode",
+                    "limits",
+                    "state",
+                    "createdAt",
+                    "updatedAt",
+                    "workspacePath"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or unknown field.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "invalid_request",
+                            "unauthorized",
+                            "not_found",
+                            "conflict",
+                            "unsupported_policy",
+                            "rate_limited",
+                            "not_ready",
+                            "sandbox_error",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "invalid_request",
+                            "unauthorized",
+                            "not_found",
+                            "conflict",
+                            "unsupported_policy",
+                            "rate_limited",
+                            "not_ready",
+                            "sandbox_error",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No broker-owned sandbox with this id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "invalid_request",
+                            "unauthorized",
+                            "not_found",
+                            "conflict",
+                            "unsupported_policy",
+                            "rate_limited",
+                            "not_ready",
+                            "sandbox_error",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many in-flight operations.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "invalid_request",
+                            "unauthorized",
+                            "not_found",
+                            "conflict",
+                            "unsupported_policy",
+                            "rate_limited",
+                            "not_ready",
+                            "sandbox_error",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Broker or Docker not ready.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "invalid_request",
+                            "unauthorized",
+                            "not_found",
+                            "conflict",
+                            "unsupported_policy",
+                            "rate_limited",
+                            "not_ready",
+                            "sandbox_error",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sandboxes/{id}/start": {
+      "post": {
+        "operationId": "startSandbox",
+        "summary": "Start a sandbox",
+        "tags": [
+          "sandboxes"
+        ],
+        "description": "Returns only after the network policy has been re-applied and verified for the new network namespace.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sandbox started.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "ownerRef": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200
+                    },
+                    "networkMode": {
+                      "type": "string",
+                      "enum": [
+                        "deny-all",
+                        "unrestricted"
+                      ]
+                    },
+                    "limits": {
+                      "type": "object",
+                      "properties": {
+                        "cpuCores": {
+                          "type": "number",
+                          "exclusiveMinimum": true,
+                          "minimum": 0,
+                          "maximum": 8
+                        },
+                        "memoryMiB": {
+                          "type": "integer",
+                          "minimum": 128,
+                          "maximum": 32768
+                        },
+                        "pids": {
+                          "type": "integer",
+                          "minimum": 16,
+                          "maximum": 4096
+                        },
+                        "workspaceMiB": {
+                          "type": "integer",
+                          "minimum": 64,
+                          "maximum": 32768
+                        }
+                      },
+                      "required": [
+                        "cpuCores",
+                        "memoryMiB",
+                        "pids",
+                        "workspaceMiB"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "starting",
+                        "started",
+                        "stopped",
+                        "error",
+                        "deleted"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "updatedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "workspacePath": {
+                      "type": "string",
+                      "enum": [
+                        "/workspace"
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "maxLength": 2000
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "ownerRef",
+                    "networkMode",
+                    "limits",
+                    "state",
+                    "createdAt",
+                    "updatedAt",
+                    "workspacePath"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or unknown field.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "invalid_request",
+                            "unauthorized",
+                            "not_found",
+                            "conflict",
+                            "unsupported_policy",
+                            "rate_limited",
+                            "not_ready",
+                            "sandbox_error",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "invalid_request",
+                            "unauthorized",
+                            "not_found",
+                            "conflict",
+                            "unsupported_policy",
+                            "rate_limited",
+                            "not_ready",
+                            "sandbox_error",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No broker-owned sandbox with this id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "invalid_request",
+                            "unauthorized",
+                            "not_found",
+                            "conflict",
+                            "unsupported_policy",
+                            "rate_limited",
+                            "not_ready",
+                            "sandbox_error",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many in-flight operations.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "invalid_request",
+                            "unauthorized",
+                            "not_found",
+                            "conflict",
+                            "unsupported_policy",
+                            "rate_limited",
+                            "not_ready",
+                            "sandbox_error",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Broker or Docker not ready.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "invalid_request",
+                            "unauthorized",
+                            "not_found",
+                            "conflict",
+                            "unsupported_policy",
+                            "rate_limited",
+                            "not_ready",
+                            "sandbox_error",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sandboxes/{id}/stop": {
+      "post": {
+        "operationId": "stopSandbox",
+        "summary": "Stop a sandbox, preserving its workspace",
+        "tags": [
+          "sandboxes"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sandbox stopped.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "ownerRef": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200
+                    },
+                    "networkMode": {
+                      "type": "string",
+                      "enum": [
+                        "deny-all",
+                        "unrestricted"
+                      ]
+                    },
+                    "limits": {
+                      "type": "object",
+                      "properties": {
+                        "cpuCores": {
+                          "type": "number",
+                          "exclusiveMinimum": true,
+                          "minimum": 0,
+                          "maximum": 8
+                        },
+                        "memoryMiB": {
+                          "type": "integer",
+                          "minimum": 128,
+                          "maximum": 32768
+                        },
+                        "pids": {
+                          "type": "integer",
+                          "minimum": 16,
+                          "maximum": 4096
+                        },
+                        "workspaceMiB": {
+                          "type": "integer",
+                          "minimum": 64,
+                          "maximum": 32768
+                        }
+                      },
+                      "required": [
+                        "cpuCores",
+                        "memoryMiB",
+                        "pids",
+                        "workspaceMiB"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "starting",
+                        "started",
+                        "stopped",
+                        "error",
+                        "deleted"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "updatedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "workspacePath": {
+                      "type": "string",
+                      "enum": [
+                        "/workspace"
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "maxLength": 2000
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "ownerRef",
+                    "networkMode",
+                    "limits",
+                    "state",
+                    "createdAt",
+                    "updatedAt",
+                    "workspacePath"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or unknown field.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "invalid_request",
+                            "unauthorized",
+                            "not_found",
+                            "conflict",
+                            "unsupported_policy",
+                            "rate_limited",
+                            "not_ready",
+                            "sandbox_error",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "invalid_request",
+                            "unauthorized",
+                            "not_found",
+                            "conflict",
+                            "unsupported_policy",
+                            "rate_limited",
+                            "not_ready",
+                            "sandbox_error",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No broker-owned sandbox with this id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "invalid_request",
+                            "unauthorized",
+                            "not_found",
+                            "conflict",
+                            "unsupported_policy",
+                            "rate_limited",
+                            "not_ready",
+                            "sandbox_error",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many in-flight operations.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "invalid_request",
+                            "unauthorized",
+                            "not_found",
+                            "conflict",
+                            "unsupported_policy",
+                            "rate_limited",
+                            "not_ready",
+                            "sandbox_error",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Broker or Docker not ready.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "invalid_request",
+                            "unauthorized",
+                            "not_found",
+                            "conflict",
+                            "unsupported_policy",
+                            "rate_limited",
+                            "not_ready",
+                            "sandbox_error",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sandboxes/{id}/exec": {
+      "post": {
+        "operationId": "execCommand",
+        "summary": "Execute a shell command, streaming NDJSON events",
+        "tags": [
+          "sandboxes"
+        ],
+        "description": "One execution per sandbox at a time. The response is newline-delimited ExecEvent frames; the stream always ends with a `result` or `error` frame. Disconnecting the client cancels the execution.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "command": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200000
+                  },
+                  "cwd": {
+                    "type": "string",
+                    "maxLength": 4096
+                  },
+                  "env": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string",
+                      "maxLength": 32768
+                    }
+                  },
+                  "timeoutMs": {
+                    "type": "integer",
+                    "minimum": 1000,
+                    "maximum": 1800000
+                  }
+                },
+                "required": [
+                  "command"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "NDJSON event stream.",
+            "content": {
+              "application/x-ndjson": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "stdout"
+                          ]
+                        },
+                        "executionId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "seq": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "dataBase64": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "executionId",
+                        "seq",
+                        "dataBase64"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "stderr"
+                          ]
+                        },
+                        "executionId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "seq": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "dataBase64": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "executionId",
+                        "seq",
+                        "dataBase64"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "result"
+                          ]
+                        },
+                        "executionId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "seq": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "exitCode": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 255
+                        },
+                        "timedOut": {
+                          "type": "boolean"
+                        },
+                        "cancelled": {
+                          "type": "boolean"
+                        },
+                        "durationMs": {
+                          "type": "integer",
+                          "minimum": 0
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "executionId",
+                        "seq",
+                        "exitCode",
+                        "timedOut",
+                        "cancelled",
+                        "durationMs"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "error"
+                          ]
+                        },
+                        "executionId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "seq": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "code": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 64
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 2000
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "executionId",
+                        "seq",
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or unknown field.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "invalid_request",
+                            "unauthorized",
+                            "not_found",
+                            "conflict",
+                            "unsupported_policy",
+                            "rate_limited",
+                            "not_ready",
+                            "sandbox_error",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "invalid_request",
+                            "unauthorized",
+                            "not_found",
+                            "conflict",
+                            "unsupported_policy",
+                            "rate_limited",
+                            "not_ready",
+                            "sandbox_error",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No broker-owned sandbox with this id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "invalid_request",
+                            "unauthorized",
+                            "not_found",
+                            "conflict",
+                            "unsupported_policy",
+                            "rate_limited",
+                            "not_ready",
+                            "sandbox_error",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Another execution is already running in this sandbox.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "invalid_request",
+                            "unauthorized",
+                            "not_found",
+                            "conflict",
+                            "unsupported_policy",
+                            "rate_limited",
+                            "not_ready",
+                            "sandbox_error",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many in-flight operations.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "invalid_request",
+                            "unauthorized",
+                            "not_found",
+                            "conflict",
+                            "unsupported_policy",
+                            "rate_limited",
+                            "not_ready",
+                            "sandbox_error",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Broker or Docker not ready.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "invalid_request",
+                            "unauthorized",
+                            "not_found",
+                            "conflict",
+                            "unsupported_policy",
+                            "rate_limited",
+                            "not_ready",
+                            "sandbox_error",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sandboxes/{id}/files": {
+      "get": {
+        "operationId": "readFile",
+        "summary": "Read a workspace file",
+        "tags": [
+          "sandboxes"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 4096
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Raw file bytes.",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or unknown field.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "invalid_request",
+                            "unauthorized",
+                            "not_found",
+                            "conflict",
+                            "unsupported_policy",
+                            "rate_limited",
+                            "not_ready",
+                            "sandbox_error",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "invalid_request",
+                            "unauthorized",
+                            "not_found",
+                            "conflict",
+                            "unsupported_policy",
+                            "rate_limited",
+                            "not_ready",
+                            "sandbox_error",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No broker-owned sandbox with this id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "invalid_request",
+                            "unauthorized",
+                            "not_found",
+                            "conflict",
+                            "unsupported_policy",
+                            "rate_limited",
+                            "not_ready",
+                            "sandbox_error",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many in-flight operations.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "invalid_request",
+                            "unauthorized",
+                            "not_found",
+                            "conflict",
+                            "unsupported_policy",
+                            "rate_limited",
+                            "not_ready",
+                            "sandbox_error",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Broker or Docker not ready.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "invalid_request",
+                            "unauthorized",
+                            "not_found",
+                            "conflict",
+                            "unsupported_policy",
+                            "rate_limited",
+                            "not_ready",
+                            "sandbox_error",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "writeFile",
+        "summary": "Write a workspace file atomically",
+        "tags": [
+          "sandboxes"
+        ],
+        "description": "Parent directories are created. The write lands via a temporary file + rename.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 4096
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          },
+          "description": "Raw file bytes."
+        },
+        "responses": {
+          "204": {
+            "description": "File written."
+          },
+          "400": {
+            "description": "Malformed request or unknown field.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "invalid_request",
+                            "unauthorized",
+                            "not_found",
+                            "conflict",
+                            "unsupported_policy",
+                            "rate_limited",
+                            "not_ready",
+                            "sandbox_error",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "invalid_request",
+                            "unauthorized",
+                            "not_found",
+                            "conflict",
+                            "unsupported_policy",
+                            "rate_limited",
+                            "not_ready",
+                            "sandbox_error",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No broker-owned sandbox with this id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "invalid_request",
+                            "unauthorized",
+                            "not_found",
+                            "conflict",
+                            "unsupported_policy",
+                            "rate_limited",
+                            "not_ready",
+                            "sandbox_error",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Workspace quota exceeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "invalid_request",
+                            "unauthorized",
+                            "not_found",
+                            "conflict",
+                            "unsupported_policy",
+                            "rate_limited",
+                            "not_ready",
+                            "sandbox_error",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many in-flight operations.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "invalid_request",
+                            "unauthorized",
+                            "not_found",
+                            "conflict",
+                            "unsupported_policy",
+                            "rate_limited",
+                            "not_ready",
+                            "sandbox_error",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Broker or Docker not ready.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "invalid_request",
+                            "unauthorized",
+                            "not_found",
+                            "conflict",
+                            "unsupported_policy",
+                            "rate_limited",
+                            "not_ready",
+                            "sandbox_error",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteFile",
+        "summary": "Delete a workspace path",
+        "tags": [
+          "sandboxes"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 4096
+            }
+          },
+          {
+            "name": "recursive",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "not": {}
+                },
+                {
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "type": "string",
+                      "enum": [
+                        "true",
+                        "false"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Path deleted."
+          },
+          "400": {
+            "description": "Malformed request or unknown field.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "invalid_request",
+                            "unauthorized",
+                            "not_found",
+                            "conflict",
+                            "unsupported_policy",
+                            "rate_limited",
+                            "not_ready",
+                            "sandbox_error",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "invalid_request",
+                            "unauthorized",
+                            "not_found",
+                            "conflict",
+                            "unsupported_policy",
+                            "rate_limited",
+                            "not_ready",
+                            "sandbox_error",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No broker-owned sandbox with this id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "invalid_request",
+                            "unauthorized",
+                            "not_found",
+                            "conflict",
+                            "unsupported_policy",
+                            "rate_limited",
+                            "not_ready",
+                            "sandbox_error",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many in-flight operations.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "invalid_request",
+                            "unauthorized",
+                            "not_found",
+                            "conflict",
+                            "unsupported_policy",
+                            "rate_limited",
+                            "not_ready",
+                            "sandbox_error",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Broker or Docker not ready.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "invalid_request",
+                            "unauthorized",
+                            "not_found",
+                            "conflict",
+                            "unsupported_policy",
+                            "rate_limited",
+                            "not_ready",
+                            "sandbox_error",
+                            "internal"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "details": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

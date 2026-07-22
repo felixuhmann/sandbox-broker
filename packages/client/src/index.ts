@@ -1,1 +1,1 @@
-export { CONTRACT_VERSION } from "@sandbox-broker/contracts";
+export { BROKER_API_VERSION } from "@sandbox-broker/contracts";

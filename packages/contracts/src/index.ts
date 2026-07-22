@@ -1,1 +1,3 @@
-export const CONTRACT_VERSION = "v1" as const;
+export * from "./schemas.js";
+export * from "./routes.js";
+export { buildOpenApiDocument } from "./openapi.js";
