@@ -106,6 +106,12 @@ export type BrokerConfig = {
   /** Ownership namespace stamped into labels; the broker only touches its own. */
   readonly ownerNamespace: string;
   readonly quotaMode: QuotaMode;
+  /**
+   * Hard ceiling on how many non-deleted sandboxes this namespace may own at
+   * once. Per-sandbox limits bound one workload; this bounds their number, so
+   * a caller cannot exhaust the host by asking for arbitrarily many of them.
+   */
+  readonly maxSandboxes: number;
   readonly hostReserveMiB: number;
   readonly defaultExecTimeoutMs: number;
   readonly maxExecTimeoutMs: number;
@@ -144,6 +150,8 @@ export function loadConfig(env: Env = process.env): BrokerConfig {
     egressNetworkName: env["SANDBOX_BROKER_EGRESS_NETWORK"]?.trim() || "sandbox-broker-egress",
     ownerNamespace: env["SANDBOX_BROKER_NAMESPACE"]?.trim() || "default",
     quotaMode: quotaMode.data,
+    // Deliberately finite and conservative: there is no "unlimited" value.
+    maxSandboxes: readInt(env, "SANDBOX_BROKER_MAX_SANDBOXES", 16, 1, 1024),
     hostReserveMiB: readInt(env, "SANDBOX_BROKER_HOST_RESERVE_MIB", 2048, 0, 1_048_576),
     defaultExecTimeoutMs: readInt(
       env,

@@ -119,6 +119,28 @@ describe("loadConfig", () => {
     expect(config.extraBlockedCidrs).toEqual(["203.0.113.7/32", "198.51.100.0/24"]);
   });
 
+  it("caps the number of concurrent sandboxes by default", () => {
+    // A finite default matters: an unbounded broker can be asked to fill the
+    // host with sandboxes even though each one is individually limited.
+    const config = loadConfig(base);
+    expect(config.maxSandboxes).toBe(16);
+    expect(Number.isInteger(config.maxSandboxes)).toBe(true);
+  });
+
+  it("accepts an explicit sandbox cap", () => {
+    expect(loadConfig({ ...base, SANDBOX_BROKER_MAX_SANDBOXES: "1" }).maxSandboxes).toBe(1);
+    expect(loadConfig({ ...base, SANDBOX_BROKER_MAX_SANDBOXES: " 250 " }).maxSandboxes).toBe(250);
+  });
+
+  it("rejects a sandbox cap that is not a positive bounded integer", () => {
+    // Notably there is no "unlimited" escape hatch: the cap is always finite.
+    for (const value of ["0", "-1", "1.5", "abc", "Infinity", "unlimited", "10000"]) {
+      expect(() =>
+        loadConfig({ ...base, SANDBOX_BROKER_MAX_SANDBOXES: value }),
+      ).toThrow(/SANDBOX_BROKER_MAX_SANDBOXES/);
+    }
+  });
+
   it("keeps the token out of its own string representation", () => {
     const config = loadConfig(base);
     expect(JSON.stringify(config)).not.toContain("cccc");

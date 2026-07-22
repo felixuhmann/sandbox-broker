@@ -13,6 +13,7 @@ import type { ReadyCheck, SandboxService, WorkspaceQuotaReport } from "../app.js
 import type { BrokerConfig } from "../config.js";
 import { BrokerError } from "../errors.js";
 import type { Logger } from "../log.js";
+import { countOwnedSandboxes, SandboxAdmissionGate, type SandboxSlot } from "./capacity.js";
 import {
   ensureEgressNetwork,
   hasMandatoryConfinement,
@@ -60,11 +61,15 @@ export class DockerSandboxService implements SandboxService {
   private readonly destinations: BlockedDestinations;
   private readonly firewallDeps: FirewallDeps;
   private readonly policyReady = new Set<string>();
+  private readonly admission: SandboxAdmissionGate;
   private quotaEnforcement: QuotaEnforcement | null = null;
 
   constructor(private readonly deps: ServiceDeps) {
     this.firewallDeps = { docker: deps.docker, config: deps.config, logger: deps.logger };
     this.destinations = new BlockedDestinations(this.firewallDeps);
+    this.admission = new SandboxAdmissionGate(deps.config.maxSandboxes, () =>
+      countOwnedSandboxes(deps.docker, deps.config),
+    );
   }
 
   // ---------------------------------------------------------------- readiness
@@ -90,6 +95,24 @@ export class DockerSandboxService implements SandboxService {
         name: `image:${image.reference}`,
         ok: image.present,
         detail: image.present ? (image.id ?? "") : "image is not present on this host",
+      });
+    }
+
+    // Utilisation is reported, not judged: a broker at capacity is healthy and
+    // still serves every other route, so this check only fails when the count
+    // itself cannot be established.
+    try {
+      const { inUse, maxSandboxes } = await this.admission.usage();
+      checks.push({
+        name: "sandbox-capacity",
+        ok: true,
+        detail: `${inUse}/${maxSandboxes} sandboxes in use`,
+      });
+    } catch (error) {
+      checks.push({
+        name: "sandbox-capacity",
+        ok: false,
+        detail: (error as Error).message.slice(0, 400),
       });
     }
 
@@ -152,6 +175,20 @@ export class DockerSandboxService implements SandboxService {
       return { sandbox: existing.sandbox, created: false };
     }
 
+    // Admission first: at capacity this throws before a volume or container
+    // exists, so a rejected request leaves nothing behind on the host.
+    const slot = await this.admission.admit();
+    try {
+      return await this.createAdmitted(request, slot);
+    } finally {
+      slot.release();
+    }
+  }
+
+  private async createAdmitted(
+    request: CreateSandboxRequest,
+    slot: SandboxSlot,
+  ): Promise<{ sandbox: Sandbox; created: boolean }> {
     const id = randomUUID();
     const createdAt = new Date().toISOString();
 
@@ -176,6 +213,10 @@ export class DockerSandboxService implements SandboxService {
       await this.removeVolume(id);
       throw error;
     }
+
+    // The container is now listed by Docker, which is what admission counts;
+    // holding the reservation any longer would count this sandbox twice.
+    slot.release();
 
     try {
       await container.start();
