@@ -12,12 +12,15 @@ import { loadConfig, type BrokerConfig } from "../config.js";
 import { createLogger } from "../log.js";
 import { createDockerClient, type DockerClient } from "./client.js";
 
-export const TEST_NAMESPACE = "itest";
-
-export function testConfig(overrides: Record<string, string> = {}): BrokerConfig {
+/**
+ * Every integration file gets its own ownership namespace so that one file's
+ * cleanup can never remove another file's containers, however the runner
+ * decides to schedule them.
+ */
+export function testConfig(namespace: string, overrides: Record<string, string> = {}): BrokerConfig {
   return loadConfig({
     SANDBOX_BROKER_TOKEN: "integration-token-integration-token",
-    SANDBOX_BROKER_NAMESPACE: TEST_NAMESPACE,
+    SANDBOX_BROKER_NAMESPACE: `itest-${namespace}`,
     SANDBOX_BROKER_SANDBOX_IMAGE: process.env["SANDBOX_BROKER_SANDBOX_IMAGE"] ?? "sandbox-broker/sandbox:dev",
     SANDBOX_BROKER_FIREWALL_IMAGE:
       process.env["SANDBOX_BROKER_FIREWALL_IMAGE"] ?? "sandbox-broker/firewall:dev",
@@ -55,9 +58,12 @@ export function createRequest(
   };
 }
 
-/** Removes every container, volume and network the integration namespace owns. */
-export async function cleanupNamespace(client: DockerClient): Promise<void> {
-  const filters = { label: [`sandbox-broker.namespace=${TEST_NAMESPACE}`] };
+/** Removes every container and volume owned by one integration namespace. */
+export async function cleanupNamespace(
+  client: DockerClient,
+  config: BrokerConfig,
+): Promise<void> {
+  const filters = { label: [`sandbox-broker.namespace=${config.ownerNamespace}`] };
 
   const containers = await client.listContainers({ all: true, filters });
   await Promise.all(

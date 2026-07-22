@@ -15,18 +15,18 @@ import {
 import { isBrokerOwned, LABEL } from "./labels.js";
 
 const client = docker();
-const config = testConfig();
+const config = testConfig("create");
 let available = false;
 
 beforeAll(async () => {
   available = await dockerAvailable(client);
   if (!available) throw new Error("Docker daemon is required for the integration suite.");
-  await cleanupNamespace(client);
+  await cleanupNamespace(client, config);
   await ensureEgressNetwork(client, config);
 }, 120_000);
 
 afterAll(async () => {
-  if (available) await cleanupNamespace(client);
+  if (available) await cleanupNamespace(client, config);
 }, 120_000);
 
 async function createStarted(networkMode: "deny-all" | "unrestricted" = "deny-all") {
