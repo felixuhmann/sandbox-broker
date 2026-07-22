@@ -55,11 +55,30 @@ export async function ensureEgressNetwork(
   config: BrokerConfig,
 ): Promise<NetworkEnsureResult> {
   const name = config.egressNetworkName;
-  const existing = await docker.listNetworks({ filters: { name: [name] } });
-  const exact = existing.find((network) => network.Name === name);
-  if (exact) return { name, id: exact.Id, created: false };
+  const found = await findNetwork(docker, name);
+  if (found) return { name, id: found, created: false };
 
-  const network = await docker.createNetwork({
+  let network;
+  try {
+    network = await createEgressNetwork(docker, config, name);
+  } catch (error) {
+    // Another broker (or a racing startup) created it between the lookup and
+    // the create. That is a success, not a failure.
+    if ((error as { statusCode?: number }).statusCode !== 409) throw error;
+    const raced = await findNetwork(docker, name);
+    if (!raced) throw error;
+    return { name, id: raced, created: false };
+  }
+  return { name, id: network.id, created: true };
+}
+
+async function findNetwork(docker: DockerClient, name: string): Promise<string | null> {
+  const existing = await docker.listNetworks({ filters: { name: [name] } });
+  return existing.find((network) => network.Name === name)?.Id ?? null;
+}
+
+function createEgressNetwork(docker: DockerClient, config: BrokerConfig, name: string) {
+  return docker.createNetwork({
     Name: name,
     Driver: "bridge",
     CheckDuplicate: true,
@@ -78,7 +97,6 @@ export async function ensureEgressNetwork(
       "com.docker.network.bridge.name": bridgeInterfaceName(name),
     },
   });
-  return { name, id: network.id, created: true };
 }
 
 /**
