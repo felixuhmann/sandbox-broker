@@ -24,6 +24,25 @@ Non-negotiables:
   network, and is created and owned by the broker.
 - Sandboxes publish no ports at all.
 
+## Production trust boundary
+
+The Docker socket is not merely another service credential: it is effective
+root authority over every workload, volume and secret on that daemon. The
+same-host Compose topology is supported for the project's explicit
+single-tenant model, but **a broker-process compromise is a full-host
+compromise** even though sandbox containers themselves do not receive the
+socket.
+
+For stronger production isolation, use a dedicated worker VM/host and Docker
+daemon containing only broker-owned sandbox resources. Keep Open Agents,
+PostgreSQL and deployment credentials off that worker; connect to the broker
+over a private authenticated network. If blocking public hairpin paths back to
+operator services is required, enforce egress again outside the sandbox
+namespace (worker firewall/dedicated egress gateway) and reject the sandbox
+egress identity at application ingress. Namespace nftables remains defense in
+depth, not protection against a compromised broker or a public CDN forwarding
+to the application.
+
 ## Images
 
 | Image | Released as | Purpose |
