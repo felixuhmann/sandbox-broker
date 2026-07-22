@@ -193,7 +193,7 @@ describe("Sandbox", () => {
   it("exposes normalized state and never leaks host details", () => {
     const sandbox = Sandbox.parse({
       id: "0d6d0b6a-6d0f-4a2c-9f0a-2f4a0c6d0b6a",
-      ownerRef: "open-agents:conversation:42",
+      ownerRefHash: "a".repeat(64),
       networkMode: "deny-all",
       limits: validLimits,
       state: "started",
@@ -202,6 +202,9 @@ describe("Sandbox", () => {
       workspacePath: "/workspace",
     });
     expect(sandbox.state).toBe("started");
+    // The plaintext owner reference is never echoed back.
+    expect(Object.keys(sandbox)).not.toContain("ownerRef");
+    expect(Sandbox.safeParse({ ...sandbox, ownerRefHash: "not-a-hash" }).success).toBe(false);
     expect(Sandbox.safeParse({ ...sandbox, state: "paused" }).success).toBe(false);
     expect(Sandbox.safeParse({ ...sandbox, containerId: "abc" }).success).toBe(false);
   });

@@ -140,11 +140,33 @@ export type ExecDeps = {
   recoverSandbox: (sandboxId: string, reason: "timeout" | "cancelled") => Promise<void>;
 };
 
+export type ExecReservation = { executionId: string; release: () => void };
+
+/**
+ * Claims the sandbox's single execution slot.
+ *
+ * Callers reserve *before* starting to stream so that a conflict, or a sandbox
+ * in the wrong state, is reported as an HTTP status rather than as an error
+ * frame inside an already-committed 200 response.
+ */
+export function reserveExecution(
+  registry: ExecutionRegistry,
+  sandboxId: string,
+): ExecReservation {
+  const executionId = randomUUID();
+  return { executionId, release: registry.acquire(sandboxId, executionId) };
+}
+
 export type ExecInput = {
   sandboxId: string;
   container: Container;
   request: ExecRequest;
   signal: AbortSignal;
+  /**
+   * A slot claimed by the caller. When omitted, one is claimed here; the
+   * reservation is always released when iteration finishes.
+   */
+  reservation?: ExecReservation;
 };
 
 /**
@@ -158,8 +180,7 @@ export async function* runExec(deps: ExecDeps, input: ExecInput): AsyncGenerator
   const { config, logger, registry } = deps;
   const { sandboxId, container, request, signal } = input;
 
-  const executionId = randomUUID();
-  const release = registry.acquire(sandboxId, executionId);
+  const { executionId, release } = input.reservation ?? reserveExecution(registry, sandboxId);
   const startedAt = Date.now();
   const timeoutMs = resolveExecTimeout(request.timeoutMs, config);
 

@@ -31,12 +31,13 @@ export function registerExecRoute(
       return errorResponse(c, "invalid_request", "Invalid exec request.", parsed.error.flatten());
     }
 
-    // Resolve the sandbox before opening the stream so a missing sandbox is an
-    // ordinary 404 rather than an error frame inside a 200 response.
-    await service.get(id);
-
     const controller = new AbortController();
     c.req.raw.signal.addEventListener("abort", () => controller.abort(), { once: true });
+
+    // Resolving the execution before opening the stream is what turns a missing
+    // sandbox, a stopped sandbox and a concurrent execution into 404/409 rather
+    // than an error frame inside an already-committed 200.
+    const events = await service.exec(id, parsed.data, controller.signal);
 
     c.header("Content-Type", "application/x-ndjson");
     c.header("Cache-Control", "no-store");
@@ -44,7 +45,7 @@ export function registerExecRoute(
     return stream(
       c,
       async (writer) => {
-        for await (const event of service.exec(id, parsed.data, controller.signal)) {
+        for await (const event of events) {
           await writer.write(encoder.encode(`${JSON.stringify(event)}\n`));
         }
       },

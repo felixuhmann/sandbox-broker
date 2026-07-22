@@ -557,10 +557,9 @@
                       "type": "string",
                       "format": "uuid"
                     },
-                    "ownerRef": {
+                    "ownerRefHash": {
                       "type": "string",
-                      "minLength": 1,
-                      "maxLength": 200
+                      "pattern": "^[0-9a-f]{64}$"
                     },
                     "networkMode": {
                       "type": "string",
@@ -633,7 +632,7 @@
                   },
                   "required": [
                     "id",
-                    "ownerRef",
+                    "ownerRefHash",
                     "networkMode",
                     "limits",
                     "state",
@@ -657,10 +656,9 @@
                       "type": "string",
                       "format": "uuid"
                     },
-                    "ownerRef": {
+                    "ownerRefHash": {
                       "type": "string",
-                      "minLength": 1,
-                      "maxLength": 200
+                      "pattern": "^[0-9a-f]{64}$"
                     },
                     "networkMode": {
                       "type": "string",
@@ -733,7 +731,7 @@
                   },
                   "required": [
                     "id",
-                    "ownerRef",
+                    "ownerRefHash",
                     "networkMode",
                     "limits",
                     "state",
@@ -1047,10 +1045,9 @@
                             "type": "string",
                             "format": "uuid"
                           },
-                          "ownerRef": {
+                          "ownerRefHash": {
                             "type": "string",
-                            "minLength": 1,
-                            "maxLength": 200
+                            "pattern": "^[0-9a-f]{64}$"
                           },
                           "networkMode": {
                             "type": "string",
@@ -1123,7 +1120,7 @@
                         },
                         "required": [
                           "id",
-                          "ownerRef",
+                          "ownerRefHash",
                           "networkMode",
                           "limits",
                           "state",
@@ -1361,10 +1358,9 @@
                       "type": "string",
                       "format": "uuid"
                     },
-                    "ownerRef": {
+                    "ownerRefHash": {
                       "type": "string",
-                      "minLength": 1,
-                      "maxLength": 200
+                      "pattern": "^[0-9a-f]{64}$"
                     },
                     "networkMode": {
                       "type": "string",
@@ -1437,7 +1433,7 @@
                   },
                   "required": [
                     "id",
-                    "ownerRef",
+                    "ownerRefHash",
                     "networkMode",
                     "limits",
                     "state",
@@ -1711,10 +1707,9 @@
                       "type": "string",
                       "format": "uuid"
                     },
-                    "ownerRef": {
+                    "ownerRefHash": {
                       "type": "string",
-                      "minLength": 1,
-                      "maxLength": 200
+                      "pattern": "^[0-9a-f]{64}$"
                     },
                     "networkMode": {
                       "type": "string",
@@ -1787,7 +1782,7 @@
                   },
                   "required": [
                     "id",
-                    "ownerRef",
+                    "ownerRefHash",
                     "networkMode",
                     "limits",
                     "state",
@@ -2064,10 +2059,9 @@
                       "type": "string",
                       "format": "uuid"
                     },
-                    "ownerRef": {
+                    "ownerRefHash": {
                       "type": "string",
-                      "minLength": 1,
-                      "maxLength": 200
+                      "pattern": "^[0-9a-f]{64}$"
                     },
                     "networkMode": {
                       "type": "string",
@@ -2140,7 +2134,7 @@
                   },
                   "required": [
                     "id",
-                    "ownerRef",
+                    "ownerRefHash",
                     "networkMode",
                     "limits",
                     "state",
@@ -2416,10 +2410,9 @@
                       "type": "string",
                       "format": "uuid"
                     },
-                    "ownerRef": {
+                    "ownerRefHash": {
                       "type": "string",
-                      "minLength": 1,
-                      "maxLength": 200
+                      "pattern": "^[0-9a-f]{64}$"
                     },
                     "networkMode": {
                       "type": "string",
@@ -2492,7 +2485,7 @@
                   },
                   "required": [
                     "id",
-                    "ownerRef",
+                    "ownerRefHash",
                     "networkMode",
                     "limits",
                     "state",

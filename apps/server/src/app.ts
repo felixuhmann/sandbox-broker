@@ -14,6 +14,9 @@ import { bearerAuth } from "./auth.js";
 import type { BrokerConfig } from "./config.js";
 import { BrokerError, errorResponse } from "./errors.js";
 import { createLogger, type Logger } from "./log.js";
+import { registerExecRoute } from "./routes/exec.js";
+import { registerFileRoutes } from "./routes/files.js";
+import { registerSandboxRoutes } from "./routes/sandboxes.js";
 
 export type ReadyCheck = ReadyResponse["checks"][number];
 
@@ -32,7 +35,12 @@ export interface SandboxService {
   start(id: string): Promise<Sandbox>;
   stop(id: string): Promise<Sandbox>;
   remove(id: string): Promise<Sandbox>;
-  exec(id: string, request: ExecRequest, signal: AbortSignal): AsyncIterable<ExecEvent>;
+  /** Rejects before streaming when the sandbox is not runnable or is busy. */
+  exec(
+    id: string,
+    request: ExecRequest,
+    signal: AbortSignal,
+  ): Promise<AsyncIterable<ExecEvent>>;
   readFile(id: string, path: string): Promise<Readable>;
   writeFile(id: string, path: string, body: Readable): Promise<void>;
   deleteFile(id: string, path: string, recursive: boolean): Promise<void>;
@@ -98,6 +106,11 @@ export function createApp(deps: AppDeps): Hono {
     };
     return c.json(body);
   });
+
+  const getService = () => service;
+  registerSandboxRoutes(app, getService);
+  registerExecRoute(app, getService, logger);
+  registerFileRoutes(app, getService);
 
   app.onError((error, c) => {
     if (error instanceof BrokerError) {

@@ -19,7 +19,6 @@ export type MapOptions = {
    * reported as `starting`, and the service refuses exec until it flips.
    */
   policyReady: boolean;
-  ownerRef: string;
   message?: string;
 };
 
@@ -58,7 +57,7 @@ export function toSandbox(inspect: ContainerInspect, options: MapOptions): Sandb
   const state = normalizeState(inspect.State?.Status ?? "unknown", options.policyReady);
   const sandbox: Sandbox = {
     id: labels.id,
-    ownerRef: options.ownerRef,
+    ownerRefHash: labels.ownerRefHash,
     networkMode: labels.networkMode,
     limits: labels.limits,
     state,

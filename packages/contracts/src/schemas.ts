@@ -44,7 +44,12 @@ export type CreateSandboxRequest = z.infer<typeof CreateSandboxRequest>;
 export const Sandbox = z
   .object({
     id: z.string().uuid(),
-    ownerRef: Identifier,
+    /**
+     * SHA-256 of the caller's `ownerRef`. The plaintext reference is never
+     * stored, so this is what the broker can always rebuild from Docker labels
+     * after a restart. Callers hash their own reference to correlate.
+     */
+    ownerRefHash: z.string().regex(/^[0-9a-f]{64}$/),
     networkMode: NetworkMode,
     limits: SandboxLimits,
     state: SandboxState,
