@@ -42,7 +42,10 @@ services:
     environment:
       SANDBOX_BROKER_TOKEN: ${SANDBOX_BROKER_TOKEN:?set SANDBOX_BROKER_TOKEN}
       SANDBOX_BROKER_NAMESPACE: example
-      # Pin these by digest too, so a moved tag cannot change what runs.
+      # Pin these by digest too, so a moved tag cannot change what runs. The
+      # digests of a release are listed in its GitHub Release notes:
+      #   SANDBOX_BROKER_SANDBOX_IMAGE: ghcr.io/felixuhmann/sandbox-broker-sandbox@sha256:...
+      #   SANDBOX_BROKER_FIREWALL_IMAGE: ghcr.io/felixuhmann/sandbox-broker-firewall@sha256:...
       SANDBOX_BROKER_SANDBOX_IMAGE: sandbox-broker/sandbox:dev
       SANDBOX_BROKER_FIREWALL_IMAGE: sandbox-broker/firewall:dev
       # Broker-owned bridge, created on start. Never an application network.

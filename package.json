@@ -17,6 +17,8 @@
     "openapi:generate": "tsx packages/contracts/scripts/generate-openapi.ts",
     "openapi:check": "tsx packages/contracts/scripts/generate-openapi.ts --check",
     "docker:build": "bash scripts/docker-build.sh",
+    "release:pack": "bash scripts/pack-release.sh",
+    "release:pack:verify": "bash scripts/pack-release.sh --verify",
     "check": "pnpm build && pnpm typecheck && pnpm lint && pnpm test && pnpm openapi:check"
   },
   "devDependencies": {

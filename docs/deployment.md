@@ -26,15 +26,18 @@ Non-negotiables:
 
 ## Images
 
-| Image | Purpose |
-|---|---|
-| `sandbox-broker/server` | The control API. Holds the Docker socket. |
-| `sandbox-broker/sandbox` | The hardened sandbox. Inert PID 1. |
-| `sandbox-broker/firewall` | Short-lived nftables helper. |
+| Image | Released as | Purpose |
+|---|---|---|
+| `sandbox-broker/server` | `ghcr.io/felixuhmann/sandbox-broker-server` | The control API. Holds the Docker socket. |
+| `sandbox-broker/sandbox` | `ghcr.io/felixuhmann/sandbox-broker-sandbox` | The hardened sandbox. Inert PID 1. |
+| `sandbox-broker/firewall` | `ghcr.io/felixuhmann/sandbox-broker-firewall` | Short-lived nftables helper. |
 
-Build locally with `bash scripts/docker-build.sh`. **In production, pin by
-digest** (`image@sha256:...`), not by tag, and pass the pinned sandbox and
-firewall references to the broker so it can never resolve a moved tag.
+Build locally with `bash scripts/docker-build.sh`, which produces the
+`sandbox-broker/*:dev` tags used by the example Compose file. **In production,
+pin by digest** (`image@sha256:...`), not by tag, and pass the pinned sandbox and
+firewall references to the broker so it can never resolve a moved tag. Each
+release publishes the three digests in its release notes; see
+[release.md](release.md).
 
 ## Configuration
 
@@ -103,6 +106,35 @@ explicitly in `SANDBOX_BROKER_BLOCKED_CIDRS`.
 
 See [`compose.example.yaml`](../compose.example.yaml) at the repository root for
 a complete, commented example.
+
+## Consuming the client
+
+`@sandbox-broker/client` is attached to every GitHub Release as a `pnpm pack`
+tarball, so an application can pin it without private registry auth:
+
+```jsonc
+{
+  "dependencies": {
+    "@sandbox-broker/client": "https://github.com/felixuhmann/sandbox-broker/releases/download/v0.1.0/sandbox-broker-client-0.1.0.tgz"
+  }
+}
+```
+
+That single line is enough: the packed manifest already points at the
+`@sandbox-broker/contracts` tarball attached to the same release, and `zod` is
+its only registry dependency. Verify what you pinned against the `SHA256SUMS`
+asset:
+
+```bash
+curl -sL <client-tarball-url> | sha256sum
+```
+
+The client's `apiVersion` is a literal `v1` in the contract, so a broker
+speaking a different major version fails validation on `ready()`/
+`capabilities()` instead of being used with mismatched types. Pin the client
+version and the broker image digest together.
+
+npm publishing is intentionally not part of v1; see [release.md](release.md).
 
 ## Operational notes
 

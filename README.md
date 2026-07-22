@@ -103,12 +103,15 @@ pnpm install
 pnpm check                 # build + typecheck + lint + unit tests + OpenAPI drift
 bash scripts/docker-build.sh
 pnpm test:integration      # real Docker; creates and destroys containers
+pnpm release:pack:verify   # reproducible client tarballs in dist/release/
 ```
 
 Deployment, configuration and the Compose topology are documented in
 [`docs/deployment.md`](docs/deployment.md). The workspace quota enforcement
 contract — including what is *not* portably enforceable — is in
-[`docs/workspace-quota.md`](docs/workspace-quota.md).
+[`docs/workspace-quota.md`](docs/workspace-quota.md). The release process,
+including the release-candidate rehearsal that pushes nothing, is in
+[`docs/release.md`](docs/release.md).
 
 ## License
 
